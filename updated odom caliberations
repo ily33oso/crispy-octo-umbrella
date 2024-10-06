@@ -1,0 +1,101 @@
+package TeamCode;
+
+import java.io.File;
+import java.util.concurrent.locks.ReadWriteLock;
+
+@Autonomous
+public class updatedodometrycalibration extends LinearOpMode {
+
+    DcMotor frontLeftMotor;
+    DcMotor backLeftMotor;
+    DcMotor frontRightMotor;
+    DcMotor backRightMotor;
+
+    DcMotor leftEncoder;
+    DcMotor rightEncoder;
+    DcMotor middleEncoder;
+
+    BNO055IMU imu;
+
+    ElapsedTime timer = new ElaspsedTime();
+
+    static final double calibrationSpeed = .5;
+
+    //CHANGE THIS SINCE THIS IS FOLLOWING A VIDEO
+    static final double TICKS_PER_REV = 8192;
+
+    //CHANGE THIS SINCE THIS IS FOLLOWING A VIDEO, ALSO IF IN MILIMETER DIVIDE TO TINCHES
+    static final double WHEEL_DIAMETER = 100/25.4;
+
+    static final double GEAR_RATIO = 1;
+
+    static final double TICKS_PER_INCH = WHEEL_DIAMETER * Math.PI * GEAR_RATIO / TICKS_PER_REV;
+
+globalcoordinatesystem positionUpdate;
+
+    //used for odom (textfile)
+
+    File sideWheelsSeparationFile = AppUtil.getInstance().getSettingsFile(filename: "sideWheelsSeparationFile");
+    File middleTickOffsetFile = AppUtil.getInstance().getSettingFile(filename:"middleTickOffsetFile");
+
+
+    @Override
+    public void runOpMode() {
+        frontLeftMotor = hardwareMap.dcMotor.get("frontLeftMotor");
+        backLeftMotor = hardwareMap.dcMotor.get("backLeftMotor");
+        frontRightMotor = hardwareMap.dcMotor.get("frontRightMotor");
+        backRightMotor = hardwareMap.dcMotor.get("backRightMotor");
+
+        leftEncoder = hardwareMap.dcMotor.get("leftEncoder");
+        rightEncoder = hardwareMap.dcMotor.get("rightEncoder");
+        middleEncoder = hardwareMap.dcMotor.get("middleEncoder");
+
+        //dont reverse encoders
+        frontLeftMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+        backLeftMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+        frontLeftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backLeftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        frontRightMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backRightMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+
+        resetOdometryEncoders();
+
+        waitForStar();
+
+        positionUpdate = new globalcoordinatesystem(leftEncoder, rightEncoder, middleEncoder, TICKS_PER_INCH, threadSleepDelay:
+        100);
+        Thread position = new Thread(positionUpdate);
+        position.start();
+
+
+        while (opModeIsActive()) {
+            float left = gamepad1.left_stick_y;
+            float right = gamepad1.right_stick_y;
+            if (gamepad1.right_stick_y > 0.1 || gamepad1.left_stick_y > 0.1 || gamepad1.left_stick_y < -0.1 || gamepad1.right_stick_y < -0.1) {
+                frontRightMotor.setPower(right);
+                backRightMotor.setPower(right);
+                frontLeftMotor.setPower(left);
+                backLeftMotor.setPower(left);
+            }
+            telemetry.addData(caption: "X Position", value: positionUpdate.returnXCoordinate() / TICKS_PER_INCH);
+            telemetry.addData(caption:"Y Position",value: positionUpdate.returnYCoordinate()/ TICKS_PER_INCH);
+            telemetry.addData(caption:"Orientation (deg)", positionUpdate.returnOrientation());
+            telemetry.update();
+        }
+        positionUpdate.stop();
+
+
+    }
+        void resetOdometryEncoders () {
+            leftEncoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            rightEncoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+            middleEncoder.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
+
+            leftEncoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            rightEncoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+            middleEncoder.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
+        }
+    }
+
+
