@@ -1,0 +1,50 @@
+package TeamCode;
+
+
+@TeleOp(name="FieldCentric")
+public class FieldCentric extends OpMode {
+
+    private DcMotor frontLeftMotor;
+    private DcMotor backLeftMotor;
+    private DcMotor frontRightMotor;
+    private DcMotor backRightMotor;
+    private Gamepad driveController;
+    private MecanumDrive mecanumDrive;
+    BHI260IMU imu;
+    @Override
+    public void init() {
+        frontLeftMotor = hardwareMap.DcMotor.get(DcMotor.class, "frontLeftMotor");
+        backLeftMotor = hardwareMap.DcMotor.get(DcMotor.class, "backLeftMotor");
+        frontRightMotor = hardwareMap.DcMotor.get(DcMotor.class, "frontRightMotor");
+        backRightMotor = hardwareMap.DcMotor.get(DcMotor.class, "backRightMotor");
+
+        frontLeftMotor.resetDeviceConfigurationForOpMode();
+        backLeftMotor.resetDeviceConfigurationForOpMode();
+        frontRightMotor.resetDeviceConfigurationForOpMode();
+        backRightMotor.resetDeviceConfigurationForOpMode();
+
+        mecanumDrive = new MecanumDrive(frontLeftMotor, backLeftMotor, frontRightMotor, backRightMotor);
+        driveController = gamepad1;
+
+        imu = hardwareMap.get(BHI260IMU.class,"imu");
+        IMU.Parameters parameters = new IMU.Parammeters(
+                new RevHubOrientationOnRobot(
+                        RevHubOrientationOnRobot.LogoFacingDirection.RIGHT,
+                        RevHubOrientationOnRobot.LogoFacingDirection.UP));
+        imu.initialize(parameters);
+        imu.resetYaw();
+    }
+
+    @Override
+    public void loop() {
+        double heading = imu.getRobotYawPitchRollAngles().getYaw(AngleUnit.DEGREES);
+        mecanumDrive.driveFieldCentric(
+         -driveController.left_stick_x,
+         driveController.left_stick_y,
+         -driveController.right_stick_x,
+          heading
+        );
+
+    }
+
+}
