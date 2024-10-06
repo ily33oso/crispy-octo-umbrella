@@ -1,0 +1,117 @@
+package TeamCode;
+
+import java.io.File;
+import java.util.concurrent.locks.ReadWriteLock;
+
+@Autonomous
+public class odometrycalibration extends LinearOpMode {
+
+    DcMotor frontLeftMotor;
+    DcMotor backLeftMotor;
+    DcMotor frontRightMotor;
+    DcMotor backRightMotor;
+
+    DcMotor leftEncoder;
+    DcMotor rightEncoder;
+    DcMotor middleEncoder;
+
+    BNO055IMU imu;
+
+    ElapsedTime timer = new ElaspsedTime();
+
+    static final double calibrationSpeed = .5;
+
+    //CHANGE THIS SINCE THIS IS FOLLOWING A VIDEO
+    static final double TICKS_PER_REV = 8192;
+
+    //CHANGE THIS SINCE THIS IS FOLLOWING A VIDEO, ALSO IF IN MILIMETER DIVIDE TO TINCHES
+    static final double WHEEL_DIAMETER = 100/25.4;
+
+    static final double GEAR_RATIO = 1;
+
+    static final double TICKS_PER_INCH = WHEEL_DIAMETER * Math.PI * GEAR_RATIO / TICKS_PER_REV;
+
+    //used for odom (textfile)
+
+    File sideWheelsSeparationFile = AppUtil.getInstance().getSettingsFile(filename: "sideWheelSeparationFile");
+    File middleTickOffsetFile = AppUtil.getInstance().getSettingFile(filename:"middleTickOffsetFile");
+
+
+    @Override
+    public void runOpMode() {
+        frontLeftMotor = hardwareMap.dcMotor.get("frontLeftMotor");
+        backLeftMotor = hardwareMap.dcMotor.get("backLeftMotor");
+        frontRightMotor = hardwareMap.dcMotor.get("frontRightMotor");
+        backRightMotor = hardwareMap.dcMotor.get("backRightMotor");
+
+        leftEncoder = hardwareMap.dcMotor.get("leftEncoder");
+        rightEncoder = hardwareMap.dcMotor.get("rightEncoder");
+        middleEncoder = hardwareMap.dcMotor.get("middleEncoder");
+
+        frontLeftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        backLeftMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        frontRightMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+        BackRightMotor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+
+        //dont reverse encoders
+        frontLeftMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+        backLeftMotor.setDirection(DcMotorSimple.Direction.REVERSE);
+
+        resetOdometryEncoders();
+
+        BNO055IMU.Parameters parameters = new BNO055IMU.Parameters();
+        parameters.angleUnit = BNO055IMU.AngleUnit.DEGREES;
+        parameters.calibrationDataFile = "BNO055IMUCalibration.json";
+        imu = hardwareMap.get(BNO055IMU.class, deviceName:"imu");
+        imu.initialize(parameters);
+
+        telemetry.addData(caption:"Status:", value:"Ready!");
+        telemetry.update();
+
+        waitforStart();
+
+        //use 2nd or third angle, comndsider how rev hub map
+        while (imu.getAngularOrientation().firstAngle < 90 && opModeIsActive()) {
+            frontRightMotor.setPower(-calibrationSpeed);
+            backRightMotor.setPower(-calibrationSpeed);
+            frontLeftMotor.setPower(calibrationSpeed);
+            backLeftMotor.setPower(calibrationSpeed);
+            if (imu.getAngularOrientation().firstAngle < 60) {
+                frontRightMotor.setPower(-calibrationSpeed);
+                backRightMotor.setPower(-calibrationSpeed);
+                frontLeftMotor.setPower(calibrationSpeed);
+                backLeftMotor.setPower(calibrationSpeed);
+            } else {
+                frontRightMotor.setPower(-calibrationSpeed / 2);
+                backRightMotor.setPower(-calibrationSpeed / 2);
+                frontLeftMotor.setPower(calibrationSpeed / 2);
+                backLeftMotor.setPower(calibrationSpeed / 2);
+            }
+        }
+        frontRightMotor.setPower(0);
+        backRightMotor.setPower(0);
+        frontLeftMotor.setPower(0);
+        backLeftMotor.setPower(0);
+
+        //meant to stabalize
+        timer.reset();
+        while (timer.seconds() < 1 && opModeIsActive()) {
+            //could add telemetry saying that your waiting
+        }
+        //do calculations
+        double angle = imu.getAngularOrientation().firstAngle;
+        double encoderDifference = Math.abs(Math.abs(leftEncoder.getCurrentPosition()) - Math.abs(rightEncoder.getCurrentPosition));
+        double sideEncoderTickOffset = encoderDifference / angle;
+        double sideWheelSeparation = (180 * sideEncoderTickOffset) / (TICKS_PER_INCH * Math.PI);
+        double middleTickOffset = middleEncoder.getCurrentPosition() / Math.toRadians(imu.getAngularOrientation().firstAngle);
+
+        ReadWriteFile.writeFile(sideWheelSeparationFile,String.valueOf(sideWheelSeparation));
+        ReadWriteFile.writeFile(middleTickOffsetFile,String.valueOf(middleTickOffset));
+
+    }
+
+
+
+    }
+
+}
